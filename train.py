@@ -24,7 +24,7 @@ tokenizer = AutoTokenizer.from_pretrained(model_name)
 tokenizer.pad_token = tokenizer.eos_token
 tokenizer.padding_side = 'left'
 
-teacher_model_name = "Qwen/Qwen2.5-14B-Instruct"
+teacher_model_name = "Qwen/Qwen2.5-Math-1.5B"
 attn = "sdpa"
 # The model to optimise
 model = AutoModelForCausalLM.from_pretrained(model_name, attn_implementation=attn, torch_dtype=torch.bfloat16, pad_token_id=tokenizer.pad_token_id, trust_remote_code=True)#.to(f"cuda:{local_rank}")
@@ -38,8 +38,7 @@ print(teacher_model.lm_head.weight.shape)
 
 assert model.lm_head.weight.shape[0] == teacher_model.lm_head.weight.shape[0]
 
-ds = load_dataset("Minsang/TSD-KD-Qwen2.5-1.5B-Instruct-Gen")["train"].train_test_split(test_size=0.01)
-
+ds = load_dataset("VoCuc/MetaMathQA-50k-256")["train"].shuffle(seed=42).select(range(30000)).train_test_split(test_size=0.01)
 def add_messages(example):
     return {
         "messages": [
@@ -48,12 +47,12 @@ def add_messages(example):
         ]
     }
     
-train_dataset = ds["train"].map(add_messages).remove_columns(["prompt"])
-eval_dataset = ds["test"].map(add_messages).remove_columns(["prompt"])
+train_dataset = ds["train"].map(add_messages, remove_columns=ds["train"].column_names)
+eval_dataset  = ds["test"].map(add_messages,  remove_columns=ds["test"].column_names)
 
 fsdp_config={'limit_all_gathers': True, 'forward_prefetch': True, 'backward_prefetch': 'backward_pre'}
 training_args = GKDConfig(
-                        output_dir=f"tsd-kd-Qwen2.5-1.5B-Instruct",
+                        output_dir=f"tsd-kd-Qwen2.5-0.5B",
                         logging_steps=10, 
                         num_train_epochs=3,
                         warmup_ratio=0.1,
